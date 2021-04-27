@@ -2605,11 +2605,11 @@ final class CodecSpec extends BaseSpec with CodecSpecHelpers {
           )
         }
 
-        it("should error if value is not utf8, string, or bytes") {
+        it("should error if value is not CharSequence or bytes") {
           assertDecodeError[String](
             unsafeEncode(10),
             unsafeSchema[String],
-            "Error decoding String: Got unexpected type java.lang.Integer, expected types String, Utf8"
+            "Error decoding String: Got unexpected type java.lang.Integer, expected type CharSequence"
           )
         }
 

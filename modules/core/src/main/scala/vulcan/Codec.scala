@@ -1035,16 +1035,13 @@ object Codec extends CodecCompanionCompat {
           schema.getType() match {
             case Schema.Type.STRING | Schema.Type.BYTES =>
               value match {
-                case string: String =>
-                  Right(string)
-                case utf8: Utf8 =>
-                  Right(utf8.toString())
+                case cs: CharSequence => Right(cs.toString)
                 case bytes: ByteBuffer =>
                   AvroError.catchNonFatal(Right(StandardCharsets.UTF_8.decode(bytes).toString))
                 case other =>
                   Left {
                     AvroError
-                      .decodeUnexpectedTypes(other, NonEmptyList.of("String", "Utf8"))
+                      .decodeUnexpectedType(other, "CharSequence")
                   }
               }
 
