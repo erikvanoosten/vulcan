@@ -9,7 +9,7 @@ import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import shapeless.{:+:, CNil, Coproduct}
 import vulcan._
 import vulcan.generic.examples._
-import vulcan.internal.converters.collection._
+import scala.jdk.CollectionConverters._
 
 final class CodecSpec extends AnyFunSpec with ScalaCheckPropertyChecks with EitherValues {
   describe("Codec") {

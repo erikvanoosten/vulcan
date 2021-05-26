@@ -15,7 +15,7 @@ import org.apache.avro.util.Utf8
 import org.scalacheck.Gen
 import org.scalatest.Assertion
 import vulcan.examples.{SecondInSealedTraitCaseClass, _}
-import vulcan.internal.converters.collection._
+import scala.jdk.CollectionConverters._
 
 import scala.util.{Failure, Success, Try}
 

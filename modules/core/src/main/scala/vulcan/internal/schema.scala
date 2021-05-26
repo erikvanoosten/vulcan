@@ -8,7 +8,7 @@ package vulcan.internal
 
 import java.nio.ByteBuffer
 import org.apache.avro.generic.{GenericEnumSymbol, GenericFixed, IndexedRecord}
-import vulcan.internal.converters.collection._
+import scala.jdk.CollectionConverters._
 
 private[vulcan] object schema {
   final def adaptForSchema(encoded: Any): Any =

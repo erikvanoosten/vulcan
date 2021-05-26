@@ -18,15 +18,16 @@ import java.time.{Instant, LocalDate, LocalTime}
 import java.util.concurrent.TimeUnit
 import java.util.UUID
 import org.apache.avro.{Conversions, LogicalType, LogicalTypes, Schema, SchemaBuilder}
-import org.apache.avro.Schema.Type._
+import org.apache.avro.Schema.Type.{valueOf => _, _}
 import org.apache.avro.generic._
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import org.apache.avro.util.Utf8
 
-import scala.annotation.implicitNotFound
+import scala.annotation.{implicitNotFound, unused}
 import scala.collection.immutable.SortedSet
-import vulcan.internal.converters.collection._
+import scala.jdk.CollectionConverters._
 import vulcan.internal.schema.adaptForSchema
+import vulcan.internal.singletons._
 
 import scala.util.Try
 
@@ -221,10 +222,12 @@ object Codec {
     *
     * @group Create
     */
-  final def decimal(
-    precision: Int,
-    scale: Int
+  final def decimal[P <: Int with Singleton, S <: Int with Singleton](precision: P, scale: S)(
+    implicit @unused @implicitNotFound("Decimal precision must be positive") posPrecision: P > 0,
+    @unused @implicitNotFound("Decimal scale must be non-negative") nonNegScale: S >= 0,
+    @unused @implicitNotFound("Decimal scale cannot exceed precision") scaleLtEqPrecision: S <= P
   ): Codec.Aux[ByteBuffer, BigDecimal] = {
+
     val conversion = new Conversions.DecimalConversion()
     val logicalType = LogicalTypes.decimal(precision, scale)
     val schema =

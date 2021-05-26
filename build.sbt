@@ -10,8 +10,6 @@ val refinedVersion = "0.9.25"
 
 val shapelessVersion = "2.3.7"
 
-val scala212 = "2.12.13"
-
 val scala213 = "2.13.6"
 
 val scala3 = "3.0.0"
@@ -38,7 +36,11 @@ lazy val core = project
         "org.typelevel" %% "cats-free" % catsVersion
       ) ++ {
         if (scalaVersion.value.startsWith("3")) Nil
-        else Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value % Provided)
+        else
+          Seq(
+            "org.scala-lang" % "scala-reflect" % scalaVersion.value % Provided,
+            "eu.timepit" %% "singleton-ops" % "0.5.2"
+          )
       }
     ),
     scalatestSettings,
@@ -297,7 +299,7 @@ lazy val noPublishSettings =
 
 lazy val scalaSettings = Seq(
   scalaVersion := scala213,
-  crossScalaVersions := Seq(scala212, scala213),
+  crossScalaVersions := Seq(scala213),
   scalacOptions ++= {
     val commonScalacOptions =
       Seq(
@@ -318,21 +320,10 @@ lazy val scalaSettings = Seq(
           "-Ywarn-dead-code",
           "-Ywarn-numeric-widen",
           "-Ywarn-value-discard",
-          "-Ywarn-unused"
+          "-Ywarn-unused",
+          "-Wconf:msg=Block&src=test/scala/vulcan/generic/.*:silent",
+          "-Xsource:3"
         )
-      } else Seq()
-
-    val scala212ScalacOptions =
-      if (scalaVersion.value.startsWith("2.12")) {
-        Seq(
-          "-Yno-adapted-args",
-          "-Ypartial-unification"
-        )
-      } else Seq()
-
-    val scala213ScalacOptions =
-      if (scalaVersion.value.startsWith("2.13")) {
-        Seq("-Wconf:msg=Block&src=test/scala/vulcan/generic/.*:silent")
       } else Seq()
 
     val scala3ScalacOptions =
@@ -344,8 +335,6 @@ lazy val scalaSettings = Seq(
 
     commonScalacOptions ++
       scala2ScalacOptions ++
-      scala212ScalacOptions ++
-      scala213ScalacOptions ++
       scala3ScalacOptions
   },
   Compile / console / scalacOptions --= Seq("-Xlint", "-Ywarn-unused"),

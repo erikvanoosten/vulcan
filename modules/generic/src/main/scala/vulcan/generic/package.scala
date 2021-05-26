@@ -14,7 +14,7 @@ import org.apache.avro.generic._
 import org.apache.avro.Schema
 import shapeless.{:+:, CNil, Coproduct, Inl, Inr, Lazy}
 import shapeless.ops.coproduct.{Inject, Selector}
-import vulcan.internal.converters.collection._
+import scala.jdk.CollectionConverters._
 
 package object generic {
   import vulcan.generic.internal.tags._
