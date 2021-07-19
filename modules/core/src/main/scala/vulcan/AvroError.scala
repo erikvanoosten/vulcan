@@ -201,12 +201,33 @@ object AvroError {
       s"Got unexpected type $typeName, expected $types $expected"
     }
 
+  // TODO
   private[vulcan] final def decodeExhaustedAlternatives(
     value: Any
   ): AvroError = {
     val typeName = if (value != null) value.getClass().getTypeName() else "null"
     AvroError(s"Exhausted alternatives for type $typeName")
   }
+
+  private[vulcan] final def decodeExhaustedAlternatives2(
+    value: Any,
+    errors: Seq[AvroError]
+  ): AvroError = {
+    val typeName = if (value != null) value.getClass().getTypeName() else "null"
+    AvroError(
+      s"Exhausted alternatives for type $typeName: ${errors.map(_.message).mkString("[", ", ", "]")}"
+    )
+  }
+
+  // private[vulcan] final def decodeExhaustedAlternatives2(
+  //   value: Any,
+  //   errors: Seq[AvroError]
+  // ): AvroError = {
+  //   val typeName = if (value != null) value.getClass().getTypeName() else "null"
+  //   AvroError(
+  //     s"Exhausted alternatives for type $typeName: ${errors.map(_.message).mkString("[", ", ", "]")}"
+  //   )
+  // }
 
   private[vulcan] final def unexpectedChar(
     length: Int

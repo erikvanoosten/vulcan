@@ -1621,6 +1621,67 @@ final class CodecSpec extends BaseSpec with CodecSpecHelpers {
       }
 
       describe("encode") {
+
+        final case class CaseClass(value: String, x: Int)
+        val caseclassCodec: Codec[CaseClass] = Codec
+          .record[CaseClass]("CaseClass", "namespace")(
+            field =>
+              (
+                field("value", _.value),
+                field("x", _.x)
+              ).mapN(CaseClass(_, _))
+          )
+
+        sealed trait MyThing
+        final case class Thing1(value: String, x: Int) extends MyThing
+        final case class Thing2(value: String, y: Int) extends MyThing
+
+        object Thing1 {
+          implicit val codec: Codec[Thing1] =
+            caseclassCodec
+              .imapError[Thing1](
+                x =>
+                  if (x.value == "bad-input") Left(AvroError("Custom error for Thing1"))
+                  else Right(Thing1(x.value, x.x))
+              ) { case Thing1(value, x) => CaseClass(value, x) }
+        }
+        object Thing2 {
+          implicit val codec: Codec[Thing2] =
+            Codec
+              .record[CaseClass]("Thing2", "namespace")(
+                field =>
+                  (
+                    field("value", _.value),
+                    field("x", _.x)
+                  ).mapN(CaseClass(_, _))
+              )
+              .imapError[Thing2](
+                x =>
+                  if (x.value == "bad-input") Left(AvroError("Custom error for Thing2"))
+                  else Right(Thing2(x.value, x.x))
+              ) { case Thing2(value, x) => CaseClass(value, x) }
+        }
+
+        implicit val codec: Codec[MyThing] =
+          Codec.union(alt => alt[Thing1] |+| alt[Thing2])
+
+        it("collects errors from alternatives") {
+          // println(codec.schema.swap.value.message)
+          println(
+            codec
+              .decode(codec.encode(Thing1("bad-input", 1)).value, codec.schema.value)
+              .swap
+              .value
+              .message
+          )
+          println(codec.encode(Thing1("bad-input", 1)).value)
+          assertDecodeError[MyThing](
+            codec.encode(Thing1("bad-input", 1)).value,
+            codec.schema.value,
+            "Error decoding union: Exhausted alternatives for type java.lang.String: [Custom error for Thing1, Custom error for Thing2]"
+          )
+        }
+
         it("should support null as first schema type in union") {
           implicit val codec: Codec[Option[Int]] =
             Codec.instance(

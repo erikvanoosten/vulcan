@@ -10,6 +10,7 @@ import cats.{Invariant, Show, ~>}
 import cats.data.{Chain, NonEmptyChain, NonEmptyList, NonEmptySet, NonEmptyVector}
 import cats.free.FreeApplicative
 import cats.implicits._
+import cats.instances.list._
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.nio.ByteBuffer
@@ -29,6 +30,7 @@ import vulcan.internal.converters.collection._
 import vulcan.internal.schema.adaptForSchema
 
 import scala.util.Try
+import cats.data.Validated
 
 /**
   * Provides a schema, along with encoding and decoding functions
@@ -1097,7 +1099,7 @@ object Codec extends CodecCompanionCompat {
               case _     => Seq(schema)
             }
 
-          def decodeNamedContainerType(container: GenericContainer) = {
+          def decodeNamedContainerType(container: GenericContainer): Either[AvroError, A] = {
             val altName =
               container.getSchema.getName
 
@@ -1127,25 +1129,49 @@ object Codec extends CodecCompanionCompat {
             }
           }
 
-          def decodeUnnamedType(other: Any) =
-            alts
-              .collectFirstSome { alt =>
-                alt.codec.schema
-                  .traverse { altSchema =>
-                    val altName = altSchema.getName
-                    schemaTypes
-                      .find(_.getName == altName)
-                      .flatMap { schema =>
-                        alt.codec
-                          .decode(other, schema)
-                          .map(alt.prism.reverseGet)
-                          .toOption
-                      }
-                  }
+          def decodeUnnamedType(other: Any): Either[AvroError, A] = {
+
+            def attemptAlternative(alt: Alt[A]): Option[Validated[NonEmptyList[AvroError], A]] =
+              alt.codec.schema.toValidatedNel
+                .traverse { altSchema =>
+                  val altName = altSchema.getName
+                  schemaTypes
+                    .find(_.getName == altName)
+                    .map { schema =>
+                      alt.codec
+                        .decode(other, schema)
+                        .map(alt.prism.reverseGet)
+                        .toValidatedNel
+                    }
+                }
+                .map(_.andThen(identity))
+
+                // we produce and Option of validated,
+                // want to transform List[Option[Validated[,,]]] -> Validated
+                // but because we have option, we don't have a non empty list
+                // if we didn't have option, then we would include all the irrelevant shema failures
+                // so we want to reduce to a possibly empty list of Either[AvroError, A]
+                // take the first one that is a Right
+                // otherwise collect the errors
+
+            val sofar = NonEmptyChain
+              .fromChain(alts)
+              .flatMap {
+                _.reduceMapK(attemptAlternative)
               }
-              .getOrElse {
-                Left(AvroError.decodeExhaustedAlternatives(other))
+
+            println(sofar)
+
+            val result = sofar
+              .map {
+                _.leftMap { errors =>
+                  AvroError.decodeExhaustedAlternatives2(other, errors.toList)
+                }.toEither
               }
+              .fold(AvroError("No alternatives provided TODO").asLeft[A])(identity)
+            println(result)
+            result
+          }
 
           value match {
             case container: GenericContainer =>
