@@ -133,6 +133,14 @@ object AvroError {
   ): AvroError =
     AvroError(s"Missing alternative $alternativeName in union")
 
+  private[vulcan] final def decodeMissingUnionAlternative2(
+    alternativeName: String,
+    errors: Seq[AvroError]
+  ): AvroError =
+    AvroError(
+      s"Missing alternative $alternativeName in union. Errors: ${errors.map(_.message).mkString("[\"", "\", \"", "\"]")}"
+    )
+
   private[vulcan] final def decodeNameMismatch(
     fullName: String,
     decodingTypeName: String
@@ -218,16 +226,6 @@ object AvroError {
       s"Exhausted alternatives for type $typeName: ${errors.map(_.message).mkString("[", ", ", "]")}"
     )
   }
-
-  // private[vulcan] final def decodeExhaustedAlternatives2(
-  //   value: Any,
-  //   errors: Seq[AvroError]
-  // ): AvroError = {
-  //   val typeName = if (value != null) value.getClass().getTypeName() else "null"
-  //   AvroError(
-  //     s"Exhausted alternatives for type $typeName: ${errors.map(_.message).mkString("[", ", ", "]")}"
-  //   )
-  // }
 
   private[vulcan] final def unexpectedChar(
     length: Int

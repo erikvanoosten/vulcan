@@ -2955,6 +2955,38 @@ final class CodecSpec extends BaseSpec with CodecSpecHelpers {
             Some(SealedTraitCaseClass.sealedTraitCaseClassCodec.schema.value)
           )
         }
+
+
+        it("should error when failing custom validation") {
+
+          sealed trait SealedTrait
+          case object X extends SealedTrait
+          case object Y extends SealedTrait
+
+          object SealedTrait {
+            implicit val codecX: Codec[X.type] = Codec.string.imapError { str =>
+              Either.cond(str == "X", X, AvroError("Must be 'X'"))
+            }(_ => "X")
+
+            implicit val codecY: Codec[Y.type] = Codec.int.imapError { int =>
+              Either.cond(int == 1, Y, AvroError("Must be 1"))
+            }(_ => 1)
+          }
+          implicit val codec: Codec[SealedTrait] =
+            Codec.union(alt => alt[X.type] |+| alt[Y.type])
+
+          assertDecodeError[SealedTrait](
+            "other",
+            codec.schema.value,
+            "Error decoding union: Exhausted alternatives for type java.lang.String: [\"Must be 'X'\", \"Error decoding Int: Got unexpected type java.lang.String, expected type Int\"]"
+          )
+          assertDecodeError[SealedTrait](
+            2,
+            codec.schema.value,
+            "Error decoding union: Exhausted alternatives for type java.lang.Integer: [\"Error decoding String: Got unexpected type java.lang.Integer, expected types String, Utf8\", \"Must be 1\"]"
+          )
+        }
+
       }
     }
 

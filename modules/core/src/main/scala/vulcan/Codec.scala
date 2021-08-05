@@ -30,7 +30,6 @@ import vulcan.internal.converters.collection._
 import vulcan.internal.schema.adaptForSchema
 
 import scala.util.Try
-import cats.data.Validated
 
 /**
   * Provides a schema, along with encoding and decoding functions
@@ -1108,32 +1107,41 @@ object Codec extends CodecCompanionCompat {
                 .find(_.getName == altName)
                 .toRight(AvroError.decodeMissingUnionSchema(altName))
 
-            def altMatching =
-              alts
-                .find(_.codec.schema.exists { schema =>
-                  schema.getType match {
-                    case RECORD | FIXED | ENUM =>
-                      schema.getName == altName || schema.getAliases.asScala
-                        .exists(alias => alias == altName || alias.endsWith(s".$altName"))
-                    case _ => false
-                  }
-                })
-                .toRight(AvroError.decodeMissingUnionAlternative(altName))
+            def altMatching: Chain[Alt[A]] =
+              alts.filter(_.codec.schema.exists { schema =>
+                schema.getType match {
+                  case RECORD | FIXED | ENUM =>
+                    schema.getName == altName || schema.getAliases.asScala
+                      .exists(alias => alias == altName || alias.endsWith(s".$altName"))
+                  case _ => false
+                }
+              })
 
             altWriterSchema.flatMap { altSchema =>
-              altMatching.flatMap { alt =>
+              val attempts = altMatching.map { alt =>
                 alt.codec
                   .decode(container, altSchema)
                   .map(alt.prism.reverseGet)
               }
+
+              attempts
+                .find(_.isRight)
+                .getOrElse(
+                  AvroError
+                    .decodeMissingUnionAlternative2(
+                      altName,
+                      attempts.collect { case Left(avroError) => avroError }.toList
+                    )
+                    .asLeft
+                )
             }
           }
 
           def decodeUnnamedType(other: Any): Either[AvroError, A] = {
 
-            def attemptAlternative(alt: Alt[A]): Option[Validated[NonEmptyList[AvroError], A]] =
-              alt.codec.schema.toValidatedNel
-                .traverse { altSchema =>
+            def attemptAlternative(alt: Alt[A]): Option[Either[AvroError, A]] =
+              alt.codec.schema
+                .flatTraverse { altSchema =>
                   val altName = altSchema.getName
                   schemaTypes
                     .find(_.getName == altName)
@@ -1141,36 +1149,23 @@ object Codec extends CodecCompanionCompat {
                       alt.codec
                         .decode(other, schema)
                         .map(alt.prism.reverseGet)
-                        .toValidatedNel
                     }
                 }
-                .map(_.andThen(identity))
 
-                // we produce and Option of validated,
-                // want to transform List[Option[Validated[,,]]] -> Validated
-                // but because we have option, we don't have a non empty list
-                // if we didn't have option, then we would include all the irrelevant shema failures
-                // so we want to reduce to a possibly empty list of Either[AvroError, A]
-                // take the first one that is a Right
-                // otherwise collect the errors
+            val attempts = alts.flatMap { alt =>
+              Chain.fromOption(attemptAlternative(alt))
+            }
 
-            val sofar = NonEmptyChain
-              .fromChain(alts)
-              .flatMap {
-                _.reduceMapK(attemptAlternative)
-              }
-
-            println(sofar)
-
-            val result = sofar
-              .map {
-                _.leftMap { errors =>
-                  AvroError.decodeExhaustedAlternatives2(other, errors.toList)
-                }.toEither
-              }
-              .fold(AvroError("No alternatives provided TODO").asLeft[A])(identity)
-            println(result)
-            result
+            attempts
+              .find(_.isRight)
+              .getOrElse(
+                AvroError
+                  .decodeExhaustedAlternatives2(
+                    other,
+                    attempts.collect { case Left(avroError) => avroError }.toList
+                  )
+                  .asLeft
+              )
           }
 
           value match {
